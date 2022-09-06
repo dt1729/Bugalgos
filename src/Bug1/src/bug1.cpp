@@ -7,53 +7,88 @@
 
 namespace plt = matplotlibcpp;
 float angle_wrap(float angle);
+
+class robot{
+    public:
+        std::pair<float, float> pos;
+        robot(float x, float y){
+            pos.first   =   x;
+            pos.second  =   y;
+        }
+};
+
+
 class obstacle{
     public:
+    // The obstacle class is supposed to represent one obstacle 
     // Assumed that points given in acw direction as required by obstacle definitions
         std::vector<std::pair<float,float>> rectangle_obs;
 
-        obstacle(std::pair<float,float> point1, std::pair<float, float> point2, std::pair<float, float> point3, std::pair<float, float> point4){
-            rectangle_obs.push_back(point1);
-            rectangle_obs.push_back(point2);
-            rectangle_obs.push_back(point3);
-            rectangle_obs.push_back(point4);
+        obstacle(std::vector<std::pair<float,float>> points){
+            for(std::pair<float,float> p : points){
+                rectangle_obs.push_back(p);
+            }
         }
 
         float DistanceLinefromPt(std::pair<float,float> pos,float a,float b,float c){
             return std::abs(a*pos.first + b*pos.second + c)/std::sqrt(std::pow(a,2) + std::pow(b,2));
         }
 
+        float DistanceLinesegmentfromPt(std::pair<float, float> pos, float x1, float y1, float x2, float y2){
+            float a = pos.first - x1;
+            float b = pos.second - y1;
+            float c = x2 - x1;
+            float d = y2 - y1;
+
+            float dot = a * c + b * d;
+            float lenSq = c * c + d * d;
+            float param = -1;
+            if(lenSq != 0.0){
+                param  = dot/lenSq;
+            }
+            float xx, yy; // Projection points on the line. // triangular distance from these is distance from points
+            if(param < 0.0){
+                xx = x1;
+                yy = y1;                
+            }
+            else if(param > 1){
+                xx = x2;
+                yy = y2;
+            }
+            else{
+                xx = x1 + param * c;
+                yy = y1 + param * d;
+            }
+            return std::sqrt(std::pow(pos.first-xx,2) + std::pow(pos.second - yy,2));
+        }
+
         std::vector<std::pair<float,float>> CheckIntersectionWLine(std::pair<float,float> pos, obstacle obs){
             // Sum of angles of the point with each vertex point sums to 360 degrees if inside the obstacle
-            int n = obs.rectangle_obs.size();
-            float my_sum = 0;
-            bool intersection = false;
-            float prev_min = INFINITY;
-            float dist_from_line = 0;
-            int line_cnt = 0;
+            int n                   = obs.rectangle_obs.size();
+            float my_sum            = 0;
+            bool intersection       = false;
+            float prev_min          = INFINITY;
+            float dist_from_line    = 0;
+            int line_cnt            = 0;
+
             for(int i = 0; i < obs.rectangle_obs.size(); i++){
                 // my_sum = sum of all interior angles; interior angles = angle of pos.point vec  - angle of pos.next point vec
-                std::cout << std::atan2(obs.rectangle_obs[(i+1)%n].second - pos.second, obs.rectangle_obs[(i+1)%n].first - pos.first) << " " << std::atan2(obs.rectangle_obs[i].second - pos.second, obs.rectangle_obs[i].first - pos.first) << "\n";
-                float ang = std::atan2(obs.rectangle_obs[(i+1)%n].second - pos.second, obs.rectangle_obs[(i+1)%n].first - pos.first) - std::atan2(obs.rectangle_obs[i].second - pos.second, obs.rectangle_obs[i].first - pos.first) ;
-                std::cout << ang << "\n";
-                ang = angle_wrap(ang);
-                my_sum += ang;
-                // my_sum = angle_wrap(my_sum);
+                float ang           = std::atan2(obs.rectangle_obs[(i+1)%n].second - pos.second, obs.rectangle_obs[(i+1)%n].first - pos.first) 
+                                    - std::atan2(obs.rectangle_obs[i].second - pos.second, obs.rectangle_obs[i].first - pos.first);
+                ang                 = angle_wrap(ang);
+                my_sum              += ang;
             }
-            std::cout << my_sum;
             if (std::abs(my_sum) >= M_PI){
-                intersection = true;
+                intersection        = true;
             } 
 
             for(int i = 0; i < obs.rectangle_obs.size(); i++){
-                float a = -(obs.rectangle_obs[(i+1)%n].second - obs.rectangle_obs[i].second);
-                float b = obs.rectangle_obs[(i+1)%n].first - obs.rectangle_obs[i].first;
-                float c = obs.rectangle_obs[i].first*(obs.rectangle_obs[(i+1)%n].second - obs.rectangle_obs[i].second) -  obs.rectangle_obs[i].second*(obs.rectangle_obs[(i+1)%n].first - obs.rectangle_obs[i].first);
-                dist_from_line = DistanceLinefromPt(pos,a,b,c);
-                std::cout << a << " " << b << " " << c << " " << dist_from_line << "\n";
+                dist_from_line      = DistanceLinesegmentfromPt(pos,obs.rectangle_obs[(i+1)%n].first,obs.rectangle_obs[(i+1)%n].second,
+                                                                obs.rectangle_obs[i].first, obs.rectangle_obs[i].second);
+
                 if(dist_from_line < prev_min){
-                    prev_min = dist_from_line;
-                    line_cnt = i;
+                    prev_min        = dist_from_line;
+                    line_cnt        = i;
                 }
             }
             std::vector<std::pair<float,float>> ans;
@@ -77,34 +112,47 @@ float angle_wrap(float angle){
         return -1*(-2*M_PI-angle);
     }
     return angle;
-
 }
 
 int main(){
-    std::pair<float,float> p1, p2, p3, p4;
-    p1.first = 1; p1.second = 1;
-    p2.first = 3; p2.second = 3;
-    p3.first = 2; p3.second = 5;
-    p4.first = 0.5; p4.second = 4;
-
-    obstacle obs(p1,p2,p3,p4);
+    ////////////////////////////////////Obstacle Definition and plotting inputs/////////////////
+    std::vector<std::pair<float,float>> p;
+    std::vector<float> plot_x       = {};
+    std::vector<float> plot_y       = {};
+    for(int i = 0; i < 6; i++){
+        std::pair<float, float> p1;
+        std::cout << "Point " << i+1  << " : "<< std::endl;
+        std::cin >> p1.first >> p1.second;
+        plot_x.push_back(p1.first);
+        plot_y.push_back(p1.second);
+        p.push_back(p1);
+    }
+    std::reverse(p.begin(),p.end());
+    p.push_back(std::pair<float,float>{p[p.size()-1].first,p[p.size()-1].second});
+    plot_x.push_back(p[p.size()-1].first); plot_y.push_back(p[p.size()-1].second);
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    obstacle obs(p);
     std::pair<float,float> p_check;
-    std::vector<std::pair<float, float>> a;
-    p_check.first = 1.01;
-    p_check.second = 1.025;
-    a = obs.CheckIntersectionWLine(p_check,obs);
+    std::vector<std::pair<float, float>> a; // A temporary variable to check intersections
+    p_check.first                   = 1.5;
+    p_check.second                  = 1.1;
+
+    a                               = obs.CheckIntersectionWLine(p_check,obs);
+
     if(a[0].first == -INFINITY && a[0].second == -INFINITY){
         std::cout << "no intersection" << std::endl;
     }
     else{
         std::cout << "Intersection with points\n" << a[0].first << " " << a[0].second << " ; " << a[1].first << " " << a[1].second << std::endl;
     }
-    std::vector<float> plot_x = {p1.first,p2.first,p3.first,p4.first,p1.first};
-    std::vector<float> plot_y = {p1.second,p2.second,p3.second,p4.second,p1.second};
+
+
     plt::named_plot("Polygon_points",plot_x,plot_y,"*-");
     plt::named_plot("Obstacle_detected", std::vector<float>{p_check.first},std::vector<float>{p_check.second},"*r");
     plt::named_plot("Nearest_edge", std::vector<float>{a[0].first,a[1].first},std::vector<float>{a[0].second,a[1].second});	
+
     plt::legend();
 	plt::show();
+
     return 0;
 }
