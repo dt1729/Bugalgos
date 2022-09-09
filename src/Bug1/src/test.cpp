@@ -1,47 +1,3 @@
-
-int obstacle_test_main(){
-    ////////////////////////////////////Obstacle Definition and plotting inputs/////////////////
-    std::vector<std::pair<float,float>> p;
-    std::vector<float> plot_x       = {};
-    std::vector<float> plot_y       = {};
-    for(int i = 0; i < 3; i++){
-        std::pair<float, float> p1;
-        std::cout << "Point " << i+1  << " : "<< std::endl;
-        std::cin >> p1.first >> p1.second;
-        plot_x.push_back(p1.first);
-        plot_y.push_back(p1.second);
-        p.push_back(p1);
-    }
-    std::reverse(p.begin(),p.end());
-    p.push_back(std::pair<float,float>{p[p.size()-1].first,p[p.size()-1].second});
-    plot_x.push_back(p[p.size()-1].first); plot_y.push_back(p[p.size()-1].second);
-    ///////////////////////////////////////////////////////////////////////////////////////////
-    obstacle obs(p);
-    std::pair<float,float> p_check;
-    std::vector<std::pair<float, float>> a; // A temporary variable to check intersections
-    p_check.first                   = 1.5;
-    p_check.second                  = 1.1;
-
-    a                               = obs.CheckIntersectionWObs(p_check);
-
-    if(a[0].first == -INFINITY && a[0].second == -INFINITY){
-        std::cout << "no intersection" << std::endl;
-    }
-    else{
-        std::cout << "Intersection with points\n" << a[0].first << " " << a[0].second << " ; " << a[1].first << " " << a[1].second << std::endl;
-    }
-
-    plt::named_plot("Polygon_points",plot_x,plot_y,"*-");
-    plt::named_plot("Obstacle_detected", std::vector<float>{p_check.first},std::vector<float>{p_check.second},"*r");
-    plt::named_plot("Nearest_edge", std::vector<float>{a[0].first,a[1].first},std::vector<float>{a[0].second,a[1].second});	
-    plt::grid(true);
-    plt::legend();
-	plt::show();
-
-    return 0;
-}
-
-
 int robot_test_main(){
     ////////////////////////////////////Obstacle Definition and plotting inputs/////////////////
     std::vector<std::pair<float,float>> p0  = {std::pair<float,float>{1,1},std::pair<float,float>{2,1},std::pair<float,float>{2,5},std::pair<float,float>{1,5},std::pair<float,float>{1,1}};
@@ -112,7 +68,7 @@ int robot_test_main(){
     obstacle obs2(p2);
     obstacle obs3(p3);
     obstacle obs4(p4);
-    robot r(2.0,0.98);
+    robot r(1.0,3.0);
     std::vector<obstacle> Union_obstacle;
     Union_obstacle.push_back(obs);
     Union_obstacle.push_back(obs1);
@@ -122,11 +78,8 @@ int robot_test_main(){
     robot_check a; // A temporary variable to check intersections
     a = r.contactSensor(Union_obstacle,0);
 
-    if(a.intersection_edge[0].first == -INFINITY && a.intersection_edge[0].second == -INFINITY){
-        std::cout << "no intersection" << std::endl;
-    }
-    else{
-        std::cout << "Intersection with points\n" << a.intersection_edge[0].first << " " << a.intersection_edge[0].second << " ; " << a.intersection_edge[1].first << " " << a.intersection_edge[1].second << std::endl;
+    if(a.intersection_check){
+        std::cout << "Inside obstacle" << std::endl;
     }
 
     for(int i = 0; i < a.sampled_points.size(); i++){
@@ -140,8 +93,44 @@ int robot_test_main(){
     
     plt::named_plot("Sensor_samples",PlotSampledX,PlotSampledY,"*g");
     plt::named_plot("Obstacle_detected", std::vector<float>{r.pos.first},std::vector<float>{r.pos.second},"*r");
-    plt::named_plot("Nearest_edge", std::vector<float>{a.intersection_edge[0].first,a.intersection_edge[1].first},
-                                    std::vector<float>{a.intersection_edge[0].second,a.intersection_edge[1].second});	
+    plt::grid(true);
+    plt::legend();
+	plt::show();
+
+    return 0;
+}
+int obstacle_test_main(){
+    ////////////////////////////////////Obstacle Definition and plotting inputs/////////////////
+    std::vector<std::pair<float,float>> p;
+    std::vector<float> plot_x       = {};
+    std::vector<float> plot_y       = {};
+    for(int i = 0; i < 3; i++){
+        std::pair<float, float> p1;
+        std::cout << "Point " << i+1  << " : "<< std::endl;
+        std::cin >> p1.first >> p1.second;
+        plot_x.push_back(p1.first);
+        plot_y.push_back(p1.second);
+        p.push_back(p1);
+    }
+    std::reverse(p.begin(),p.end());
+    p.push_back(std::pair<float,float>{p[p.size()-1].first,p[p.size()-1].second});
+    plot_x.push_back(p[p.size()-1].first); plot_y.push_back(p[p.size()-1].second);
+    ///////////////////////////////////////////////////////////////////////////////////////////
+    obstacle obs(p);
+    std::pair<float,float> p_check;
+    bool a; // A temporary variable to check intersections
+    p_check.first                   = 0.65;
+    p_check.second                  = 0.7;
+
+    a                               = obs.CheckIntersectionWObs(p_check);
+
+    if(a){
+        std::cout << "Inside the obstacle" << std::endl;
+    }
+
+
+    plt::named_plot("Polygon_points",plot_x,plot_y,"*-");
+    plt::named_plot("Obstacle_detected", std::vector<float>{p_check.first},std::vector<float>{p_check.second},"*r");
     plt::grid(true);
     plt::legend();
 	plt::show();
