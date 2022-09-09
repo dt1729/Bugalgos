@@ -38,15 +38,16 @@ class obstacle{
 class robot{
     public:
         std::pair<float, float> pos;
-        float robotStep                 = 0.01;
+        float robotStep                 = 0.09;
         float heading                   = 0.0;
-        float RadiusofView              = 0.01;
-        float SensorResolution          = M_PI/12;
+        float RadiusofView              = 0.05;
+        float SensorResolution          = M_PI/128;
 
         robot(float x, float y){
             this->pos.first   =   x;
             this->pos.second  =   y;
         }
+        robot_check contactSensor_alternate(std::vector<obstacle> obs, float start_scan);
         robot_check contactSensor(std::vector<obstacle> obs, float direction_angle);
         std::pair<float,float> minDistpt(std::vector<std::pair<float,float>> trajectory,std::pair<float,float>Pos);
         std::vector<std::pair<float,float>> Bug1MainLoop(std::pair<float,float> iniPos, std::pair<float,float> goalPos, std::vector<obstacle> obs);
@@ -64,6 +65,7 @@ float angle_wrap(float angle){
     return angle;
 }
 
+
 int bug1Driver(){
     // Obstacle Definition
     std::vector<std::pair<float,float>> p0  = {std::pair<float,float>{1,1},std::pair<float,float>{2,1},std::pair<float,float>{2,5},std::pair<float,float>{1,5},std::pair<float,float>{1,1}};
@@ -71,6 +73,9 @@ int bug1Driver(){
     std::vector<std::pair<float,float>> p2  = {std::pair<float,float>{3,12},std::pair<float,float>{12,12},std::pair<float,float>{12,13},std::pair<float,float>{3,13},std::pair<float,float>{3,12}};
     std::vector<std::pair<float,float>> p3  = {std::pair<float,float>{12,5},std::pair<float,float>{13,5},std::pair<float,float>{13,13},std::pair<float,float>{12,13},std::pair<float,float>{12,5}};
     std::vector<std::pair<float,float>> p4  = {std::pair<float,float>{6,5},std::pair<float,float>{12,5},std::pair<float,float>{12,6},std::pair<float,float>{6,6},std::pair<float,float>{6,5}};
+    // std::vector<std::pair<float,float>>p_merged = {std::pair<float,float>{3,3},std::pair<float,float>{3,13},std::pair<float,float>{13,13},std::pair<float,float>{13,5},std::pair<float,float>{6,5},
+    //                                                 std::pair<float,float>{6,6},std::pair<float,float>{12,6},std::pair<float,float>{12,12},std::pair<float,float>{4,12},std::pair<float,float>{4,3},std::pair<float,float>{3,3}};
+
     std::vector<std::vector<float>> plot_x  = {};
     std::vector<std::vector<float>> plot_y  = {};
     std::vector<float> PlotSampledX         = {};
@@ -134,6 +139,7 @@ int bug1Driver(){
     obstacle obs2(p2);
     obstacle obs3(p3);
     obstacle obs4(p4);
+    // obstacle obs_mergerd(p_merged);
     robot r(0.0,0.0);
     std::vector<obstacle> Union_obstacle;
     Union_obstacle.push_back(obs);
@@ -141,6 +147,9 @@ int bug1Driver(){
     Union_obstacle.push_back(obs2);
     Union_obstacle.push_back(obs3);
     Union_obstacle.push_back(obs4);
+    // std::vector<obstacle> Union_obstacle_merged;
+    // Union_obstacle_merged.push_back(obs);
+    // Union_obstacle_merged.push_back(p_merged);
     std::pair<float,float> goalPos = {10.0,10.0};
     std::vector<std::pair<float,float>> Bug1Trajectory;
     std::vector<float> Bug1X;
@@ -251,14 +260,13 @@ robot_check robot::contactSensor(std::vector<obstacle> obs, float start_scan){
     std::vector<std::pair<float,float>> intersection_edge; // In ACW fashion
 
     // Generating Sampling points for the sensor
-    float i = start_scan - M_PI/2;
-    while(i < M_PI/2 + start_scan){
+    float i = M_PI/2 + start_scan;
+    while(i > start_scan - M_PI/2){
         float x     = this->pos.first     + RadiusofView * std::cos(i);
         float y     = this->pos.second    + RadiusofView * std::sin(i);
         sample_points.push_back(std::pair<float,float>{x,y});
-        i += SensorResolution;
+        i -= SensorResolution;
     }
-    std::reverse(sample_points.begin(),sample_points.end());
     // These loops check intersection with each obstacle present in the environment
     for(obstacle o : obs){
         for(std::pair<float, float> p : sample_points){
@@ -283,6 +291,68 @@ robot_check robot::contactSensor(std::vector<obstacle> obs, float start_scan){
     return ans;
 }
 
+robot_check robot::contactSensor_alternate(std::vector<obstacle> obs, float start_scan){
+    /*        Generate points for sampling around the robot       */
+
+    std::vector<std::pair<float,float>> sample_points;
+    std::pair<float,float> intersection_beam;
+    std::vector<std::pair<float,float>> intersection_edge,intersection_edge1; // In ACW fashion
+    std::vector<std::pair<float,float>> temp_check;
+    std::vector<float> angles;
+    robot_check ans,ans1;
+    bool transition = false;
+
+    // Generating Sampling points for the sensor
+
+    float i = M_PI + start_scan;
+    while(i > start_scan - M_PI){
+        float x     = this->pos.first     + RadiusofView * std::cos(i);
+        float y     = this->pos.second    + RadiusofView * std::sin(i);
+        sample_points.push_back(std::pair<float,float>{x,y});
+        angles.push_back(i);
+        i -= SensorResolution;
+    }
+
+    ans.intersection_edge   = std::vector<std::pair<float,float>>{std::pair<float,float>(-INFINITY,-INFINITY)};
+    ans.sampled_points      = sample_points;
+    ans.intersection_point  = sample_points[0];
+    ans.intersection_heading= angles[0];
+
+    ans1.intersection_edge   = std::vector<std::pair<float,float>>{std::pair<float,float>(-INFINITY,-INFINITY)};
+    ans1.sampled_points      = sample_points;
+    ans1.intersection_point  = sample_points[sample_points.size() -1];
+    ans1.intersection_heading= angles[sample_points.size() -1];
+
+    // These loops check intersection with each obstacle present in the environment
+    for(int j = 0; j < obs.size(); j++){
+        for(int i = 0; i < sample_points.size()-1; i++){
+
+            intersection_edge = obs[j].CheckIntersectionWObs(sample_points[i]);
+            intersection_edge1 = obs[j].CheckIntersectionWObs(sample_points[i+1]);
+            bool c1 = intersection_edge[0].first == -INFINITY && intersection_edge[0].second == -INFINITY;
+            bool c2 = intersection_edge1[0].first == -INFINITY && intersection_edge1[0].second == -INFINITY;
+            if(c1&&!c2){
+                        ans.intersection_edge   = intersection_edge1;
+                        ans.sampled_points      = sample_points;
+                        ans.intersection_point  = sample_points[i+1];
+                        ans.intersection_heading= angles[i+1];
+                        break;
+            }
+            else if(!c1 && c2){
+                        ans.intersection_edge   = intersection_edge;
+                        ans.sampled_points      = sample_points;
+                        ans.intersection_point  = sample_points[i];
+                        ans.intersection_heading= angles[i];
+                        break;
+            }
+        }
+    }
+    return ans;
+}
+
+
+
+
 std::vector<std::pair<float,float>> robot::Bug1MainLoop(std::pair<float,float> iniPos, std::pair<float,float> goalPos, std::vector<obstacle> obs){
 
     /*  STEPS for Doing bug1 algorithm
@@ -306,7 +376,7 @@ std::vector<std::pair<float,float>> robot::Bug1MainLoop(std::pair<float,float> i
     std::vector<float> PlotSampledY         = {};
 
     int count = 0;
-    int max_c = 3500;
+    int max_c = 3000;
     while(count < max_c){
         count ++;
         // std::cout << "x: " <<  this->pos.first << " y: " << this->pos.second << std::endl; 
@@ -316,7 +386,7 @@ std::vector<std::pair<float,float>> robot::Bug1MainLoop(std::pair<float,float> i
             break;
         } 
 
-        ::temp_a                   = this->contactSensor(obs, this->heading);
+        ::temp_a                   = this->contactSensor_alternate(obs, this->heading);
         robot_check a = ::temp_a;
         if(count == max_c - 1){
             for(int i = 0; i < a.sampled_points.size(); i++){
@@ -388,7 +458,7 @@ std::vector<std::pair<float,float>> robot::Bug1MainLoop(std::pair<float,float> i
             }
 
             if(gotoQl){
-                if(distQl < 0.1){
+                if(distQl < 0.05){
                     obstacleFollow = false;
                     obstacleCircle = false;
                     gotoQl         = false;
