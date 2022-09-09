@@ -155,7 +155,7 @@ int bug1Driver(){
     std::vector<float> Bug1X;
     std::vector<float> Bug1Y;
 
-    Bug1Trajectory = r.Bug1MainLoop(r.pos, goalPos, Union_obstacle_merged);
+    Bug1Trajectory = r.Bug1MainLoop(r.pos, goalPos, Union_obstacle);
     
     for(int i = 0; i < Bug1Trajectory.size(); i++){
         Bug1X.push_back(Bug1Trajectory[i].first);
@@ -219,31 +219,24 @@ bool obstacle::CheckIntersectionWObs(std::pair<float,float> pos){
     float prev_min          = INFINITY;
     float dist_from_line    = 0;
     int line_cnt            = 0;
+    float xmin, ymin, xmax, ymax;
+    xmin = INFINITY; ymin = INFINITY; xmax = -INFINITY; ymax = -INFINITY;
 
-    for(int i = 0; i < this->obs_points.size(); i++){
-        // my_sum = sum of all interior angles; interior angles = angle of pos.point vec  - angle of pos.next point vec
-        float ang           = std::atan2(this->obs_points[(i+1)%n].second - pos.second, this->obs_points[(i+1)%n].first - pos.first) 
-                            - std::atan2(this->obs_points[i].second - pos.second, this->obs_points[i].first - pos.first);
-        ang                 = angle_wrap(ang);
-        my_sum              += ang;
+    for(int i = 0; i < obs_points.size(); i++){
+        xmin = std::min(obs_points[i].first,xmin);
+        ymin = std::min(obs_points[i].second,ymin);
+        xmax = std::max(obs_points[i].first,xmax);
+        ymax = std::max(obs_points[i].second,ymax);
     }
-    if (std::abs(my_sum)    >= M_PI){
-        intersection        = true;
-    } 
+
+    if(pos.first >= xmin && pos.second >= ymin && pos.first <= xmax && pos.second <= ymax){
+        return true;
+    }
+    else{
+        return false;
+    }
     return intersection;
-
-    // std::vector<std::pair<float,float>> ans;
-    // if(intersection){
-    //     ans.push_back(this->obs_points[line_cnt]);
-    //     ans.push_back(this->obs_points[(line_cnt+1)%n]);
-    // }
-    // else{
-    //     ans.push_back(std::pair<float,float>(-INFINITY,-INFINITY));
-    //     ans.push_back(std::pair<float,float>(-INFINITY,-INFINITY));
-    // }
-    // return ans;
 }
-
 
 robot_check robot::contactSensor(std::vector<obstacle> obs, float start_scan){
     /*        Generate points for sampling around the robot       */
@@ -290,18 +283,18 @@ robot_check robot::contactSensor_alternate(std::vector<obstacle> obs, float star
     bool intersection_check,intersection_check1; // In ACW fashion
     std::vector<std::pair<float,float>> temp_check;
     std::vector<float> angles;
-    robot_check ans,ans1;
+    robot_check ans, ans1;
     bool transition = false;
 
     // Generating Sampling points for the sensor
+    float i = start_scan - M_PI;
 
-    float i = M_PI/2 + 0.3 + start_scan;
-    while(i > start_scan - M_PI/2 - 0.3){
+    while(i < start_scan + M_PI){
         float x     = this->pos.first     + RadiusofView * std::cos(i);
         float y     = this->pos.second    + RadiusofView * std::sin(i);
         sample_points.push_back(std::pair<float,float>{x,y});
         angles.push_back(i);
-        i -= SensorResolution;
+        i += SensorResolution;
     }
 
     ans.intersection_check  = false;
@@ -315,9 +308,8 @@ robot_check robot::contactSensor_alternate(std::vector<obstacle> obs, float star
     ans1.intersection_heading= angles[sample_points.size() -1];
 
     // These loops check intersection with each obstacle present in the environment
-    for(int j = 0; j < obs.size(); j++){
-        for(int i = 0; i < sample_points.size()-1; i++){
-
+    for(int i = 0; i < sample_points.size()-1; i++){
+        for(int j = 0; j < obs.size(); j++){
             intersection_check = obs[j].CheckIntersectionWObs(sample_points[i]);
             intersection_check1 = obs[j].CheckIntersectionWObs(sample_points[i+1]);
             bool c1 = intersection_check;
@@ -327,14 +319,12 @@ robot_check robot::contactSensor_alternate(std::vector<obstacle> obs, float star
                         ans.sampled_points      = sample_points;
                         ans.intersection_point  = sample_points[i+1];
                         ans.intersection_heading= angles[i+1];
-                        break;
             }
             else if(!c1 && c2){
                         ans.intersection_check = intersection_check1;
                         ans.sampled_points      = sample_points;
                         ans.intersection_point  = sample_points[i];
                         ans.intersection_heading= angles[i];
-                        break;
             }
         }
     }
@@ -359,51 +349,43 @@ std::vector<std::pair<float,float>> robot::Bug1MainLoop(std::pair<float,float> i
     bool gotoQl             = false;
     bool headtoGoal         = false; 
     bool inFrontObs         = false;
-    int q_h_count           = -1;
+    int q_h_count           =  0;
     int inicnt              =  0;
     std::pair<float,float> q_l, q_h;
+    q_l = std::pair<float,float>{INFINITY,INFINITY};
+    q_h = std::pair<float,float>{INFINITY,INFINITY};
     std::vector<std::pair<float,float>> trajectory;
     std::vector<std::pair<float,float>> obsTrajectory;
     std::vector<float> PlotSampledX         = {};
     std::vector<float> PlotSampledY         = {};
 
     int count = 0;
-    int max_c = 163;
-    while(count < max_c){
+    int max_c = 2000;
+    while(true){
         count ++;
         // std::cout << "x: " <<  this->pos.first << " y: " << this->pos.second << std::endl; 
         trajectory.push_back(this->pos);
-        // if dist from goal < 1m say algorithm is complete
-        if(std::sqrt(std::pow(this->pos.first-goalPos.first,2) + std::pow(this->pos.second-goalPos.second,2)) < 1){
+        // if dist from goal < 0.5m say algorithm is complete
+        if(std::sqrt(std::pow(this->pos.first-goalPos.first,2) + std::pow(this->pos.second-goalPos.second,2)) < 0.5){
             break;
         } 
 
-        ::temp_a                   = this->contactSensor_alternate(obs, this->heading);
-        robot_check a = ::temp_a;
-        if(count == max_c - 1){
-            for(int i = 0; i < a.sampled_points.size(); i++){
-                PlotSampledX.push_back(a.sampled_points[i].first);
-                PlotSampledY.push_back(a.sampled_points[i].second);
-            }
-            plt::named_plot("Sensor_samples",PlotSampledX,PlotSampledY,"*g");
-
-        }
+        robot_check a = this->contactSensor_alternate(obs, this->heading);            
 
         // Flag setting procedure
         if(!a.intersection_check){
-            // obstacleFollow  = false;
+            obstacleFollow  = false;
             obstacleCircle  = false;
             gotoQl          = false;
             headtoGoal      = true;
         }
         else{
-            // if(!obstacleFollow && q_h_count == -1){
+            obstacleFollow      = true;
             if(headtoGoal){
-                // std::cout << "hit obs count: " << q_h_count << " obstacle circling?: " << obstacleCircle << " Obstacle following? " << obstacleFollow << std::endl;
                 q_h             = std::pair<float,float>{pos.first,pos.second};
-                q_h_count++;
+                std::cout << "hit obs count: " << q_h_count << " obstacle circling?: " << obstacleCircle << " Obstacle following? " << obstacleFollow << std::endl;
+                q_h_count++; 
             }
-            // obstacleFollow      = true;
             if(!gotoQl){
                 obstacleCircle  = true;
                 gotoQl          = false;
@@ -418,70 +400,65 @@ std::vector<std::pair<float,float>> robot::Bug1MainLoop(std::pair<float,float> i
 
         // 
         if(headtoGoal){
-            obstacleCircle      = false;
-            gotoQl              = false;
-            // obstacleFollow      = false;
+            obstacleFollow      = false;
             this->heading       = std::atan2(goalPos.second - this->pos.second, goalPos.first - this->pos.first);
             this->pos.first     += this->robotStep*std::cos(this->heading);
             this->pos.second    += this->robotStep*std::sin(this->heading);
         }
-        else{
-
-        // if(obstacleFollow){
+        else if(obstacleFollow){
             float distQl    = std::sqrt(std::pow(this->pos.first-q_l.first,2)+std::pow(this->pos.second-q_l.second,2));
             float distQh    = std::sqrt(std::pow(this->pos.first-q_h.first,2)+std::pow(this->pos.second-q_h.second,2));
-
-            if(obstacleCircle){
-                if(distQh < 0.1 && inicnt > 10){
-                    // obstacleFollow = true;
-                    obstacleCircle = false;
-                    gotoQl         = true;
-                    q_l            = minDistpt(obsTrajectory,goalPos); // finds the minimum distance point to the system
-                    obsTrajectory.clear();
-                    --q_h_count;
-                    std::cout << "In Qh " << " qlx: "  << q_l.first << " qly: " << q_l.second << " count: " << count << std::endl;
-                    std::cout << " qhx: "  << q_h.first << " qhy: " << q_h.second << " q_h_count " << q_h_count << std::endl;
+            std::cout << q_h.second << " " << q_h.first << std::endl;
+            if(distQl < 0.5){
+                headtoGoal     = true;
+                obstacleFollow = false;
+                inicnt              =  0;
+                --q_h_count;
+                int temp_cnt = 0;
+                while(temp_cnt < 3){
+                    obstacleFollow      = false;
+                    this->heading       = std::atan2(goalPos.second - this->pos.second, goalPos.first - this->pos.first);
+                    this->pos.first     += this->robotStep*std::cos(this->heading);
+                    this->pos.second    += this->robotStep*std::sin(this->heading);
+                    temp_cnt++;
                 }
-                this->heading = a.intersection_heading;
-                // if(inFrontObs){
-                //     this->heading        = std::atan2(a.intersection_edge[0].second - a.intersection_edge[1].second, a.intersection_edge[0].first - a.intersection_edge[1].first);
-                // }
-                // else{
-                //     this->heading        = std::atan2(a.intersection_edge[1].second - a.intersection_edge[0].second, a.intersection_edge[1].first - a.intersection_edge[0].first); // Added M_PI for left turning
-                // }
+            }
+            else if(distQh < 0.5 && inicnt > 10){
+                // obstacleFollow = true;
+                obstacleCircle = false;
+                gotoQl         = true;
+                q_l            = minDistpt(obsTrajectory,goalPos); // finds the minimum distance point to the system
+                std::cout << "In Qh " << " qlx: "  << q_l.first << " qly: " << q_l.second << " count: " << count << std::endl;
+                std::cout << " qhx: "  << q_h.first << " qhy: " << q_h.second << " q_h_count " << q_h_count << std::endl;
+            }
+            else{
                 inicnt++;
-                this->pos.first     += this->robotStep*std::cos(this->heading);
-                this->pos.second    += this->robotStep*std::sin(this->heading);
                 obsTrajectory.push_back(this->pos);
             }
-
-            if(gotoQl){
-                if(distQl < 0.5){
-                    // obstacleFollow = false;
-                    obstacleCircle = false;
-                    gotoQl         = false;
-                    headtoGoal     = true;
-                    --q_h_count;
-                    inicnt = 0;
-                    std::cout << "Done with obstacle 1" << " count " << count << std::endl;
-                    std::cout << " qhx: "  << q_h.first << " qhy: " << q_h.second << " q_h_count " << q_h_count << std::endl;
-                }
-
                 this->heading = a.intersection_heading;
-                // std::cout << " qhx: "  << q_h.first << " qhy: " << q_h.second << std::endl;
-                // std::cout << "distQh: " << distQh << " q_h_count " << q_h_count << " count: " << count << std::endl;
-                std::cout << " qlx: "  << q_l.first << " qly: " << q_l.second << std::endl;
-                // if(inFrontObs){
-                //     this->heading        = std::atan2(a.intersection_edge[0].second - a.intersection_edge[1].second, a.intersection_edge[0].first - a.intersection_edge[1].first);
-                // }
-                // else{
-                //     this->heading        = std::atan2(a.intersection_edge[1].second - a.intersection_edge[0].second, a.intersection_edge[1].first - a.intersection_edge[0].first); // Added M_PI for left turning
-                // }
-
                 this->pos.first     += this->robotStep*std::cos(this->heading);
                 this->pos.second    += this->robotStep*std::sin(this->heading);
-            }
         }
+            // if(gotoQl){
+            //     if(distQl < 0.5){
+            //         // obstacleFollow = false;
+            //         obstacleCircle = false;
+            //         gotoQl         = false;
+            //         headtoGoal     = true;
+            //         --q_h_count;
+            //         inicnt = 0;
+            //         std::cout << "Done with obstacle 1" << " count " << count << std::endl;
+            //         std::cout << " qhx: "  << q_h.first << " qhy: " << q_h.second << " q_h_count " << q_h_count << std::endl;
+            //     }
+
+            //     this->heading = a.intersection_heading;
+            //     // std::cout << " qhx: "  << q_h.first << " qhy: " << q_h.second << std::endl;
+            //     // std::cout << "distQh: " << distQh << " q_h_count " << q_h_count << " count: " << count << std::endl;
+            //     std::cout << " qlx: "  << q_l.first << " qly: " << q_l.second << std::endl;
+
+            //     this->pos.first     += this->robotStep*std::cos(this->heading);
+            //     this->pos.second    += this->robotStep*std::sin(this->heading);
+            // }
         // }
     }
 
@@ -490,19 +467,24 @@ std::vector<std::pair<float,float>> robot::Bug1MainLoop(std::pair<float,float> i
 
 std::pair<float,float> robot::minDistpt(std::vector<std::pair<float,float>> trajectory,std::pair<float,float>Pos){
     float minD             = INFINITY;
+    int   minCount         = 0;
     std::pair<float,float> minDpos;
     for(int i = 0; i < trajectory.size(); i++){
         float dist = std::sqrt(std::pow(Pos.first-trajectory[i].first,2)+std::pow(Pos.second-trajectory[i].second,2));
         if(dist < minD){
-            minDpos = trajectory[i];
+            std::cout << "mindD in if: " << minCount << " " << minCount << std::endl;
+            minCount = i;
             minD    = dist;
         }
     }
+    minDpos.first = trajectory[minCount].first;
+    minDpos.second = trajectory[minCount].second;
+    std::cout << "mindD: " << minCount << " " << minCount << std::endl;
     return minDpos;
 }
 
 bool robot::inFront(float intersectionHeading){
-    if(intersectionHeading > M_PI/6 && intersectionHeading < -M_PI/6){
+    if((intersectionHeading < M_PI/2 || intersectionHeading > 3*M_PI/2)){
         return true;
     }
     else{
