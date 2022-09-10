@@ -48,7 +48,7 @@ class robot{
             this->pos.second  =   y;
         }
         robot_check contactSensor_alternate(std::vector<obstacle> obs, float start_scan, bool turn);
-        robot_check contactSensor(std::vector<obstacle> obs, float direction_angle);
+        // robot_check contactSensor(std::vector<obstacle> obs, float direction_angle);
         std::pair<float,float> minDistpt(std::vector<std::pair<float,float>> trajectory,std::pair<float,float>Pos);
         std::vector<std::pair<float,float>> Bug1MainLoop(std::pair<float,float> iniPos, std::pair<float,float> goalPos, std::vector<obstacle> obs, bool turn);
         bool inFront(float intersectionHeading);
@@ -422,42 +422,42 @@ bool obstacle::CheckIntersectionWObs(std::pair<float,float> pos){
     return intersection;
 }
 
-robot_check robot::contactSensor(std::vector<obstacle> obs, float start_scan){
-    /*        Generate points for sampling around the robot       */
-    std::vector<std::pair<float,float>> sample_points;
-    std::pair<float,float> intersection_point;
-    bool intersection_check = false;
+// robot_check robot::contactSensor(std::vector<obstacle> obs, float start_scan){
+//     /*        Generate points for sampling around the robot       */
+//     std::vector<std::pair<float,float>> sample_points;
+//     std::pair<float,float> intersection_point;
+//     bool intersection_check = false;
 
-    // Generating Sampling points for the sensor
-    float i = start_scan - M_PI;
-    while(i < M_PI + start_scan){
-        float x     = this->pos.first     + RadiusofView * std::cos(i);
-        float y     = this->pos.second    + RadiusofView * std::sin(i);
-        sample_points.push_back(std::pair<float,float>{x,y});
-        i += SensorResolution;
-    }
-    // These loops check intersection with each obstacle present in the environment
-    for(obstacle o : obs){
-        for(std::pair<float, float> p : sample_points){
-            // std::cout << o.obs_points[0].first << " " << o.obs_points[1].first << " " << o.obs_points[2].first << " " << o.obs_points[3].first << "\n";
-            intersection_check = o.CheckIntersectionWObs(p);
-            if(intersection_check){
-                intersection_point = p;
-                robot_check ans;
-                ans.sampled_points      = sample_points;
-                ans.intersection_point  = intersection_point;
-                ans.intersection_heading= std::atan2(intersection_point.second - this->pos.second, intersection_point.first - this->pos.first);
-                return ans;
-            }
-        }
-    }
-    robot_check ans;
-    ans.intersection_check  = intersection_check;
-    ans.sampled_points      = sample_points;
-    ans.intersection_point  = intersection_point;
-    ans.intersection_heading= std::atan2(intersection_point.second - this->pos.second, intersection_point.first - this->pos.first);
-    return ans;
-}
+//     // Generating Sampling points for the sensor
+//     float i = start_scan - M_PI;
+//     while(i < M_PI + start_scan){
+//         float x     = this->pos.first     + RadiusofView * std::cos(i);
+//         float y     = this->pos.second    + RadiusofView * std::sin(i);
+//         sample_points.push_back(std::pair<float,float>{x,y});
+//         i += SensorResolution;
+//     }
+//     // These loops check intersection with each obstacle present in the environment
+//     for(obstacle o : obs){
+//         for(std::pair<float, float> p : sample_points){
+//             // std::cout << o.obs_points[0].first << " " << o.obs_points[1].first << " " << o.obs_points[2].first << " " << o.obs_points[3].first << "\n";
+//             intersection_check = o.CheckIntersectionWObs(p);
+//             if(intersection_check){
+//                 intersection_point = p;
+//                 robot_check ans;
+//                 ans.sampled_points      = sample_points;
+//                 ans.intersection_point  = intersection_point;
+//                 ans.intersection_heading= std::atan2(intersection_point.second - this->pos.second, intersection_point.first - this->pos.first);
+//                 return ans;
+//             }
+//         }
+//     }
+//     robot_check ans;
+//     ans.intersection_check  = intersection_check;
+//     ans.sampled_points      = sample_points;
+//     ans.intersection_point  = intersection_point;
+//     ans.intersection_heading= std::atan2(intersection_point.second - this->pos.second, intersection_point.first - this->pos.first);
+//     return ans;
+// }
 
 robot_check robot::contactSensor_alternate(std::vector<obstacle> obs, float start_scan, bool turn){
     /*        Generate points for sampling around the robot       */
@@ -467,7 +467,7 @@ robot_check robot::contactSensor_alternate(std::vector<obstacle> obs, float star
     bool intersection_check,intersection_check1; // In ACW fashion
     std::vector<std::pair<float,float>> temp_check;
     std::vector<float> angles;
-    robot_check ans, ans1;
+    robot_check ans;
     bool transition = false;
 
     // Generating Sampling points for the sensor
@@ -489,11 +489,6 @@ robot_check robot::contactSensor_alternate(std::vector<obstacle> obs, float star
     ans.sampled_points      = sample_points;
     ans.intersection_point  = sample_points[0];
     ans.intersection_heading= angles[0];
-
-    ans1.intersection_check  = false;
-    ans1.sampled_points      = sample_points;
-    ans1.intersection_point  = sample_points[sample_points.size() -1];
-    ans1.intersection_heading= angles[sample_points.size() -1];
 
     // These loops check intersection with each obstacle present in the environment
     for(int i = 0; i < sample_points.size()-1; i++){
